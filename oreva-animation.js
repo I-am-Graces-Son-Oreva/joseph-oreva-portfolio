@@ -6,11 +6,23 @@
 
   const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   let visible = false;
+  let playbackAttempt = 0;
 
-  // Playback and looping are native video behavior. Only attach the source when
-  // needed, and keep the static logo for reduced motion or unavailable playback.
+  function configureVideo() {
+    video.autoplay = true;
+    video.defaultMuted = true;
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.controls = false;
+  }
+  configureVideo();
+
+  // Keep native looping, but explicitly request playback once per source load.
+  // A blocked request leaves the static logo; no timers or readiness-event retries.
   function updateSource() {
     if (motion.matches) {
+      playbackAttempt++;
       video.pause();
       if (video.getAttribute('src')) {
         video.removeAttribute('src');
@@ -18,9 +30,19 @@
       }
       section.classList.remove('is-playing');
     } else if (visible && !video.getAttribute('src')) {
-      video.muted = true;
+      configureVideo();
+      const attempt = ++playbackAttempt;
       video.src = video.dataset.src;
       video.load();
+      const fallback = () => {
+        if (attempt === playbackAttempt) section.classList.remove('is-playing');
+      };
+      try {
+        const playback = video.play();
+        if (playback && typeof playback.catch === 'function') playback.catch(fallback);
+      } catch {
+        fallback();
+      }
     }
   }
 
